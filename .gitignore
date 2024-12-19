@@ -1,3 +1,5 @@
-.env
+
 tmp/
+.env
 *.exe
+runner.conf
