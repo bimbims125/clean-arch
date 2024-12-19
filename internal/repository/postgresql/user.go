@@ -51,3 +51,18 @@ func (p *UserRepository) Fetch(ctx context.Context) (result []domain.User, err e
 	}
 	return res, nil
 }
+
+func (p *UserRepository) Create(ctx context.Context, user domain.User) error {
+	query := `
+		INSERT INTO users (name, email, password, role)
+		VALUES ($1, $2, $3, $4)
+	`
+	var createdUser domain.User
+	err := p.Conn.QueryRowContext(ctx, query, user.Name, user.Email, user.Password, user.Role).
+		Scan(&createdUser.ID, &createdUser.Name, &createdUser.Email, &createdUser.Role)
+	if err != nil {
+		logrus.Error(err)
+	}
+
+	return nil
+}

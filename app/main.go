@@ -58,8 +58,9 @@ func main() {
 		}
 	}()
 
-	// Initialize repository, service, and handler
+	// Initialize repository
 	userRepo := postgresRepo.NewUserRepository(dbConn)
+	productRepo := postgresRepo.NewProductRepository(dbConn)
 
 	// Create a main router
 	r := mux.NewRouter()
@@ -69,6 +70,7 @@ func main() {
 
 	// Register user handlers to the subrouter
 	rest.NewUserHandler(apiRouter, userRepo)
+	rest.NewProductHandler(apiRouter, productRepo)
 
 	// Wrap the main router with CORS middleware
 	corsWrappedRouter := middleware.CORSMiddleware(r)
