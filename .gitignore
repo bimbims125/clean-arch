@@ -3,4 +3,5 @@ tmp/
 .env
 *.exe
 runner.conf
-vpsdata.txt
+*.txt
+
