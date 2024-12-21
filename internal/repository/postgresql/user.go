@@ -63,6 +63,5 @@ func (p *UserRepository) Create(ctx context.Context, user domain.User) error {
 	if err != nil {
 		logrus.Error(err)
 	}
-
 	return nil
 }
