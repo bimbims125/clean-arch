@@ -6,16 +6,20 @@ import (
 	"net/http"
 
 	"github.com/bimbims125/clean-arch/domain"
-	"github.com/bimbims125/clean-arch/internal/repository"
+	"github.com/bimbims125/clean-arch/internal/validation"
 	"github.com/bimbims125/clean-arch/utils"
+	"github.com/go-playground/validator/v10"
 	"github.com/gorilla/mux"
 )
 
-// UserService represent the user's usecases
+// define validator
+var validate = validator.New()
 
+// UserService represent the user's usecases
 type UserService interface {
 	Fetch(ctx context.Context) (result []domain.User, err error)
 	Create(ctx context.Context, user domain.User) error
+	GetByEmail(ctx context.Context, email string) (domain.User, error)
 }
 
 // UserHandler represent the http handler for user
@@ -54,23 +58,32 @@ func (u *UserHandler) FetchUser(w http.ResponseWriter, r *http.Request) {
 func (u *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var user domain.User
 
-	err := json.NewDecoder(r.Body).Decode(&user)
-	if err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&user); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(utils.ResponseError{Message: err.Error()})
+		json.NewEncoder(w).Encode(utils.ResponseError{Message: "Invalid request payload"})
 		return
 	}
 
-	hashedPwd, err := repository.HashPassword(user.Password)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(utils.ResponseError{Message: err.Error()})
+	// Validation
+	// Register custom validation
+	validate.RegisterValidation("password", validation.ValidatePassword)
+	if err := validate.Struct(user); err != nil {
+		validationError := validation.FormatValidationError(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"errors": validationError})
 		return
 	}
 
-	user.Password = hashedPwd
+	// Check if email already exists
+	if _, err := u.Service.GetByEmail(r.Context(), user.Email); err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(utils.ResponseError{Message: "Email already exists"})
+		return
+	}
 
-	err = u.Service.Create(r.Context(), user)
+	err := u.Service.Create(r.Context(), user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(utils.ResponseError{Message: err.Error()})

@@ -58,10 +58,26 @@ func (p *UserRepository) Create(ctx context.Context, user domain.User) error {
 		VALUES ($1, $2, $3, $4)
 	`
 	var createdUser domain.User
+	if err := user.HashPassword(); err != nil {
+		return err
+	}
+
 	err := p.Conn.QueryRowContext(ctx, query, user.Name, user.Email, user.Password, user.Role).
 		Scan(&createdUser.ID, &createdUser.Name, &createdUser.Email, &createdUser.Role)
 	if err != nil {
 		logrus.Error(err)
 	}
 	return nil
+}
+
+func (p *UserRepository) GetByEmail(ctx context.Context, email string) (result domain.User, err error) {
+	query := `SELECT id, name, email, role FROM users WHERE email = $1`
+	res, err := p.fetch(ctx, query, email)
+	if err != nil {
+		return domain.User{}, err
+	}
+	if len(res) == 0 {
+		return domain.User{}, domain.ErrNotFound
+	}
+	return res[0], nil
 }
