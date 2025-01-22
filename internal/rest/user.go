@@ -32,7 +32,7 @@ func NewUserHandler(r *mux.Router, service UserService) {
 	handler := &UserHandler{Service: service}
 
 	r.HandleFunc("/users", handler.FetchUser).Methods("GET")
-	r.HandleFunc("/register", handler.Create).Methods("POST")
+	r.HandleFunc("/users", handler.Create).Methods("POST")
 }
 
 // FetchUser handles HTTP GET /users

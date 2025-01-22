@@ -8,9 +8,11 @@ import (
 	"net/url"
 	"os"
 
+	mysqlRepo "github.com/bimbims125/clean-arch/internal/repository/mysql"
 	postgresRepo "github.com/bimbims125/clean-arch/internal/repository/postgresql"
 	"github.com/bimbims125/clean-arch/internal/rest"
 	"github.com/bimbims125/clean-arch/internal/rest/middleware"
+	_ "github.com/go-sql-driver/mysql" // Import driver MySQL
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -30,7 +32,8 @@ func init() {
 }
 
 func main() {
-	// Prepare database
+	// Load configuration from environment variables
+	dbType := os.Getenv("DB_TYPE") // Tambahkan ini
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
 	dbUser := os.Getenv("DB_USER")
@@ -38,42 +41,47 @@ func main() {
 	dbName := os.Getenv("DB_NAME")
 
 	val := url.Values{}
-	val.Add("sslmode", "disable")
-	val.Add("timezone", "Asia/Jakarta")
+	val.Add("parseTime", "true")
+	val.Add("loc", "Asia/Jakarta")
 
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s", dbUser, dbPass, dbHost, dbPort, dbName, val.Encode())
+	var dbConn *sql.DB
+	var err error
+	var userRepo rest.UserService // General interface for both repositories
 
-	dbConn, err := sql.Open("postgres", dsn)
-	if err != nil {
-		log.Fatal("failed to open connection to database", err)
+	// Pilih database berdasarkan DB_TYPE
+	switch dbType {
+	case "postgres":
+		dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s", dbUser, dbPass, dbHost, dbPort, dbName, val.Encode())
+		dbConn, err = sql.Open("postgres", dsn)
+		if err != nil {
+			log.Fatal("failed to open connection to Postgres: ", err)
+		}
+		userRepo = postgresRepo.NewPostgresUserRepository(dbConn)
+	case "mysql":
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", dbUser, dbPass, dbHost, dbPort, dbName, val.Encode())
+		dbConn, err = sql.Open("mysql", dsn)
+		if err != nil {
+			log.Fatal("failed to open connection to MySQL: ", err)
+		}
+		userRepo = mysqlRepo.NewMySQLUserRepository(dbConn)
+	default:
+		log.Fatal("unsupported database type. Please set DB_TYPE to 'postgres' or 'mysql'")
 	}
+
+	// Check DB connection
 	err = dbConn.Ping()
 	if err != nil {
-		log.Fatal("failed to ping database ", err)
+		log.Fatal("failed to ping database: ", err)
 	}
 
-	defer func() {
-		err := dbConn.Close()
-		if err != nil {
-			log.Fatal("got error when closing the DB connection", err)
-		}
-	}()
-
-	// Initialize repository
-	userRepo := postgresRepo.NewUserRepository(dbConn)
-	productRepo := postgresRepo.NewProductRepository(dbConn)
-	categoryRepo := postgresRepo.NewCategoryRepository(dbConn)
+	defer dbConn.Close()
 
 	// Create a main router
 	r := mux.NewRouter()
-
-	// Create a subrouter with prefix "/api/v1"
 	apiRouter := r.PathPrefix("/api/v1").Subrouter()
 
 	// Register user handlers to the subrouter
 	rest.NewUserHandler(apiRouter, userRepo)
-	rest.NewProductHandler(apiRouter, productRepo)
-	rest.NewCategoryHandler(apiRouter, categoryRepo)
 
 	// Wrap the main router with CORS middleware
 	corsWrappedRouter := middleware.CORSMiddleware(r)
