@@ -33,7 +33,7 @@ func init() {
 
 func main() {
 	// Load configuration from environment variables
-	dbType := os.Getenv("DB_TYPE") // Tambahkan ini
+	dbType := os.Getenv("DB_TYPE")
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
 	dbUser := os.Getenv("DB_USER")
@@ -47,8 +47,9 @@ func main() {
 	var dbConn *sql.DB
 	var err error
 	var userRepo rest.UserService // General interface for both repositories
+	var categoryRepo rest.CategoryService
 
-	// Pilih database berdasarkan DB_TYPE
+	// Choose database from .env setup DB_TYPE
 	switch dbType {
 	case "postgres":
 		dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s", dbUser, dbPass, dbHost, dbPort, dbName, val.Encode())
@@ -57,6 +58,7 @@ func main() {
 			log.Fatal("failed to open connection to Postgres: ", err)
 		}
 		userRepo = postgresRepo.NewPostgresUserRepository(dbConn)
+		// categoryRepo = postgresRepo.NewPostgresCategoryRepository(dbConn)
 	case "mysql":
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?%s", dbUser, dbPass, dbHost, dbPort, dbName, val.Encode())
 		dbConn, err = sql.Open("mysql", dsn)
@@ -64,6 +66,7 @@ func main() {
 			log.Fatal("failed to open connection to MySQL: ", err)
 		}
 		userRepo = mysqlRepo.NewMySQLUserRepository(dbConn)
+		categoryRepo = mysqlRepo.NewMySQLCategoryRepository(dbConn)
 	default:
 		log.Fatal("unsupported database type. Please set DB_TYPE to 'postgres' or 'mysql'")
 	}
@@ -82,6 +85,7 @@ func main() {
 
 	// Register user handlers to the subrouter
 	rest.NewUserHandler(apiRouter, userRepo)
+	rest.NewCategoryHandler(apiRouter, categoryRepo)
 
 	// Wrap the main router with CORS middleware
 	corsWrappedRouter := middleware.CORSMiddleware(r)
